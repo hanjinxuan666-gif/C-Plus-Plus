@@ -71,12 +71,13 @@ std::array<std::complex<long double>, 2> quadraticEquation(long double a,
     // appears when b^2 - 4ac < 0, so sqrt(b^2 - 4ac) has no real roots. So,
     // the imaginary component is i * (+/-)sqrt(abs(b^2 - 4ac)) / 2a.
     if (discriminant > 0) {
-        // Since discriminant > 0, there are only real roots. Therefore,
-        // imaginary component = 0.
-        solutions[0] = std::complex<long double>{
-            (-b - std::sqrt(discriminant)) * 0.5 / a, 0};
-        solutions[1] = std::complex<long double>{
-            (-b + std::sqrt(discriminant)) * 0.5 / a, 0};
+        // Add terms with the same sign to avoid cancellation, then use
+        // the product of the roots (c/a) to obtain the other root.
+        const long double q =
+            -0.5L * b - std::copysign(0.5L * std::sqrt(discriminant), b);
+        const size_t index = std::signbit(b) ? 1 : 0;
+        solutions[index] = q / a;
+        solutions[1 - index] = c / q;
         return solutions;
     }
     // Since b^2 - 4ac is < 0, for faster computation, -discriminant is
@@ -153,6 +154,13 @@ static void test() {
         std::complex<long double>{-4.7912878475, 0},
         std::complex<long double>{-0.2087121525, 0}};
     assertArray(math::quadraticEquation(1, 5, 1), floatCase);
+
+    // When the roots differ greatly in magnitude, their product is still c/a.
+    for (long double b : {1e20L, -1e20L}) {
+        const auto roots = math::quadraticEquation(1, b, 1);
+        assert(roots[0].real() < roots[1].real());
+        assert(std::abs(roots[0] * roots[1] - 1.0L) < 1e-12L);
+    }
 
     // Values are complex.
     std::cout << "Input: \n"
